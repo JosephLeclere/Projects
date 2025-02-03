@@ -6,6 +6,167 @@ import base64
 from pathlib import Path
 import time
 
+# Chess Table Class
+class Pawn():
+    def __init__(self):
+        self.name = 'Pawn'
+    def eligible_move(self, start, end, color):
+        if start[1] == end[1]:
+            if start[0] == 1 and color:
+                return end[0] - start[0] <= 2
+            elif start[0] == 6 and not(color):
+                return end[0] - start[0] >= -2
+            else:
+                return end[0] - start[0] == 1 if color else end[0] - start[0] == -1
+        return False
+
+class Bishop():
+    def __init__(self):
+        self.name = 'Bishop'
+    def eligible_move(self, start, end, color):
+        if abs(start[0]-end[0]) == abs(start[1]-end[1]):
+            return True
+        return False
+
+class Rook():
+    def __init__(self):
+        self.name = 'Rook'
+    def eligible_move(self, start, end, color):
+        if start[0] == end[0] or start[1] == end[1]:
+            return True
+        return False
+
+class Queen():
+    def __init__(self):
+        self.name = 'Queen'
+    def eligible_move(self, start, end, color):
+        if abs(start[0]-end[0]) == abs(start[1]-end[1]) or start[0] == end[0] or start[1] == end[1]:
+            return True
+        return False
+
+class King():
+    def __init__(self):
+        self.name = 'King'
+    def eligible_move(self, start, end, color):
+        if abs(start[0]-end[0]) <= 1 and abs(start[1]-end[1]) <= 1:
+            return True
+        return False
+
+class Knight():
+    def __init__(self):
+        self.name = 'Knight'
+    def eligible_move(self, start, end, color):
+        if abs(start[0]-end[0]) == 2 and abs(start[1]-end[1]) == 1:
+            return True
+        if abs(start[0]-end[0]) == 1 and abs(start[1]-end[1]) == 2:
+            return True
+        return False
+
+class ChessTable():
+    #The board has integers positive for white and negative for black, zeros for empty squares.
+    def __init__(self):
+        self.table = []
+        self.turn = 'W'
+        self.positions = {(chr(j+ord('a')), i+1): (i,j) for i in range(8) for j in range(8)}
+        self.piece_names = {1: Pawn(), 2: Rook(), 3: Knight(), 4:Bishop(), 5: Queen(), 6: King()}
+        self.colors = {1: 'W', -1: 'B'}
+        self.whites_left = 16
+        self.blacks_left = 16
+
+
+    def set(self):
+        self.table = np.zeros((8,8), dtype=int)
+        for i in range(8):
+            self.table[1,i] = 1
+        for i in range(3):
+            self.table[0,i] = self.table[0,-(i+1)] = i + 2
+        self.table[0,3] = 5
+        self.table[0,4] = 6
+        self.table[-2:] = -self.table[:2][::-1]
+        
+    def display_table(self):
+        screen = pd.DataFrame(np.zeros((8,8), dtype=str))
+        screen.columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
+        screen.index = range(8,0,-1)
+        for i in range(8):
+            for j in range(8):
+                if self.table[i,j] == 0:
+                    screen.iloc[7-i,j] = ' '
+                else:
+                    screen.iloc[7-i,j] = self.colors[np.sign(self.table[i,j])] + self.piece_names[abs(self.table[i,j])].name
+        return screen
+        
+    def update_count(self, color, target):
+            if color and not(target):
+                self.blacks_left -= 1
+            elif not(color) and not(target):
+                self.whites_left -= 1
+    
+    def checking_game_over(self):
+        if 6 not in self.table:
+            print('Blacks won.')
+            return True
+        if -6 not in self.table:
+            print('Whites won.')
+            return True
+        return False
+
+    
+    def move(self, start, end):
+        if self.checking_game_over():
+            return 
+        start, end = self.positions[start], self.positions[end]
+        sign = np.sign(self.table[start])
+        color = (1 + sign)/2
+        if color == 0.5:
+            return 'This square is empty.'
+        
+        elif self.turn != self.colors[sign]:
+            return 'You cannot move your opponents pieces.'
+        
+        current_piece = self.piece_names[abs(self.table[start])]
+        
+        if start == end:
+            return 'You must move the piece.'
+        
+        elif np.sign(self.table[start]) == np.sign(self.table[end]):
+            return 'You cannot move to a square with a piece of the same color.'
+        
+        elif current_piece.name == 'Pawn':
+            target = self.table[end]
+            if sign * np.sign(self.table[end]) == -1: #Pawn is of opposite color to the one at end.
+                if sign == 1:
+                    if end[1] - start[1] == 1 and abs(end[0] - start[0]) == 1:
+                        self.table[end] = self.table[start]
+                        self.table[start] = 0
+                        self.turn = 'B'
+                        self.update_count(color, target)
+                        return 'Move done.'
+                else:
+                    if end[1] - start[1] == -1 and abs(end[0] - start[0]) == 1:
+                        self.table[end] = self.table[start]
+                        self.table[start] = 0
+                        self.turn = 'W'
+                        self.update_count(color, target)
+                        return 'Move done.'
+            elif current_piece.eligible_move(start, end, color):
+                target = self.table[end]
+                self.table[end] = self.table[start]
+                self.table[start] = 0
+                self.turn = 'B' if self.turn == 'W' else 'W'
+                return 'Move done.'
+            return current_piece.name + ' is not allowed to do this move.'
+        
+        elif current_piece.eligible_move(start, end, color):
+            target = self.table[end]
+            self.table[end] = self.table[start]
+            self.table[start] = 0
+            self.turn = 'B' if self.turn == 'W' else 'W'
+            self.update_count(color, target)
+            return 'Move done.'
+        else:
+            return current_piece.name + ' is not allowed to do this move.'
+        
 # Convert images to Base64
 def img_to_bytes(img_path):
     img_bytes = Path(img_path).read_bytes()
@@ -43,62 +204,10 @@ def load_piece_images():
 
 piece_images = load_piece_images()
 
-# Chess Table Class
-class ChessTable():
-    def __init__(self):
-        self.table = np.zeros((8, 8), dtype=int)
-        self.turn = 'W'
-        self.positions = {(chr(j + ord('a')), i + 1): (i, j) for i in range(8) for j in range(8)}
-        self.piece_names = {1: 'Pawn', 2: 'Rook', 3: 'Knight', 4: 'Bishop', 5: 'Queen', 6: 'King'}
-        self.colors = {1: 'W', -1: 'B'}
-        self.whites_left = 16
-        self.blacks_left = 16
-        self.set()
-
-    def set(self):
-        self.table.fill(0)
-        for i in range(8):
-            self.table[1, i] = 1
-        for i in range(3):
-            self.table[0, i] = self.table[0, -(i+1)] = i + 2
-        self.table[0, 3] = 5
-        self.table[0, 4] = 6
-        self.table[-2:] = -self.table[:2][::-1]
-
-    def display_table(self):
-        screen = pd.DataFrame(np.full((8, 8), ' '))
-        screen.columns = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
-        screen.index = range(8, 0, -1)
-        for i in range(8):
-            for j in range(8):
-                if self.table[i, j] != 0:
-                    piece = self.colors[np.sign(self.table[i, j])] + self.piece_names[abs(self.table[i, j])]
-                    screen.iloc[7-i, j] = piece
-        return screen
-
-    def move(self, start, end):
-        if self.whites_left == 0:
-            return 'Blacks already won.'
-        if self.blacks_left == 0:
-            return 'Whites already won.'
-
-        start, end = self.positions[start], self.positions[end]
-        sign = np.sign(self.table[start])
-        if sign == 0:
-            return 'This square is empty.'
-        if self.turn != self.colors[sign]:
-            return 'You cannot move your opponent’s pieces.'
-        if self.table[end] * sign > 0:
-            return 'You cannot capture your own piece.'
-
-        self.table[end] = self.table[start]
-        self.table[start] = 0
-        self.turn = 'B' if self.turn == 'W' else 'W'
-        return 'Move done.'
-
 # Initialize session state
 if "chess_table" not in st.session_state:
     st.session_state.chess_table = ChessTable()
+    st.session_state.chess_table.set()
 
 if "selected_cell" not in st.session_state:
     st.session_state.selected_cell = None
@@ -111,7 +220,7 @@ st.title("Chess Game")
 st.write(f"Current Turn: {st.session_state.chess_table.turn}")
 
 # Create a container to hold the chessboard
-chessboard_container = st.container()
+chessboard_container = st.container(border=1)
 
 # Adjust the display to fit inside a square layout
 with chessboard_container:
